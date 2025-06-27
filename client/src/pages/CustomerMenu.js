@@ -16,9 +16,10 @@ import useCartStore from '../stores/cartStore';
 
 const CustomerMenu = () => {
   const [searchParams] = useSearchParams();
-  const masaNo = searchParams.get('masa');
+  const masaId = searchParams.get('id');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showCart, setShowCart] = useState(false);
+  const [masaNo, setMasaNo] = useState('');
   
   const { 
     items, 
@@ -29,15 +30,30 @@ const CustomerMenu = () => {
     getTotalPrice, 
     getTotalItems,
     getItemsForOrder,
-    setMasaNo
+    setMasaNo: setMasaNoInStore
   } = useCartStore();
+
+  // Masa bilgilerini getir
+  const { data: masaData } = useQuery(
+    ['masa', masaId],
+    () => fetch(`/api/masalar/${masaId}`).then(res => res.json()),
+    {
+      enabled: !!masaId,
+      onSuccess: (data) => {
+        if (data.masa) {
+          setMasaNo(data.masa.masa_no);
+          setMasaNoInStore(data.masa.masa_no);
+        }
+      }
+    }
+  );
 
   // Masa numarasını store'a kaydet
   useEffect(() => {
     if (masaNo) {
-      setMasaNo(masaNo);
+      setMasaNoInStore(masaNo);
     }
-  }, [masaNo, setMasaNo]);
+  }, [masaNo, setMasaNoInStore]);
 
   // Menü verilerini getir
   const { data: menuData, isLoading: menuLoading, error: menuError } = useQuery(
@@ -54,10 +70,21 @@ const CustomerMenu = () => {
     menuAPI.getKategoriler
   );
 
+  // Debug için console.log ekleyelim
+  useEffect(() => {
+    console.log('CustomerMenu mounted');
+    console.log('Masa ID:', masaId);
+    console.log('Masa No:', masaNo);
+    console.log('Menu Data:', menuData);
+    console.log('Menu Loading:', menuLoading);
+    console.log('Menu Error:', menuError);
+    console.log('Kategoriler Data:', kategorilerData);
+  }, [masaId, masaNo, menuData, menuLoading, menuError, kategorilerData]);
+
   // Sipariş gönder
   const handleSubmitOrder = async () => {
-    if (!masaNo) {
-      toast.error('Masa numarası bulunamadı');
+    if (!masaId) {
+      toast.error('Masa ID bulunamadı');
       return;
     }
 
@@ -68,7 +95,7 @@ const CustomerMenu = () => {
 
     try {
       const orderData = {
-        masa_id: parseInt(masaNo),
+        masa_id: parseInt(masaId),
         items: getItemsForOrder(),
         notlar: ''
       };
@@ -102,6 +129,7 @@ const CustomerMenu = () => {
         <div className="text-center">
           <div className="loading-spinner mx-auto mb-4"></div>
           <p className="text-gray-600">Menü yükleniyor...</p>
+          <p className="text-sm text-gray-500 mt-2">Debug: Loading state</p>
         </div>
       </div>
     );
@@ -116,6 +144,7 @@ const CustomerMenu = () => {
             Hata Oluştu
           </h3>
           <p className="text-gray-600">Menü yüklenirken bir hata oluştu.</p>
+          <p className="text-sm text-red-500 mt-2">Debug: {menuError?.message}</p>
         </div>
       </div>
     );
@@ -162,6 +191,11 @@ const CustomerMenu = () => {
         </div>
       </header>
 
+      {/* Debug Bilgisi */}
+      <div className="bg-yellow-100 p-4 text-sm">
+        <p><strong>Debug:</strong> Masa ID: {masaId} | Masa No: {masaNo} | Kategoriler: {categories.length} | Menü Kategorileri: {Object.keys(menu).length}</p>
+      </div>
+
       {/* Kategori Filtreleri */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-4">
@@ -204,6 +238,7 @@ const CustomerMenu = () => {
             <p className="text-gray-600">
               Seçili kategoride ürün bulunmuyor.
             </p>
+            <p className="text-sm text-gray-500 mt-2">Debug: Menü boş veya yüklenmedi</p>
           </div>
         ) : (
           <div className="space-y-6">

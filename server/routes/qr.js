@@ -40,8 +40,9 @@ router.post('/:masaId/regenerate', requireAuth, (req, res) => {
       return res.status(404).json({ error: 'Masa bulunamadı' });
     }
 
-    // Yeni QR kod oluştur
-    const qrUrl = `${req.protocol}://${req.get('host')}/menu?masa=${masa.masa_no}`;
+    // Yeni QR kod oluştur - Masa ID'si kullan
+    const baseUrl = process.env.BASE_URL || `http://${req.get('host')}`;
+    const qrUrl = `${baseUrl}/menu?id=${masaId}`;
     
     QRCode.toDataURL(qrUrl, { 
       width: 300,
@@ -64,7 +65,8 @@ router.post('/:masaId/regenerate', requireAuth, (req, res) => {
         res.json({
           message: 'QR kod yeniden oluşturuldu',
           masa_no: masa.masa_no,
-          qr_code: qrCode
+          qr_code: qrCode,
+          qr_url: qrUrl
         });
       });
     });

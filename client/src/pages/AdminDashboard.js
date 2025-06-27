@@ -7,12 +7,14 @@ import {
   Menu as MenuIcon, 
   ShoppingCart, 
   QrCode,
-  Plus,
   Settings
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import useAuthStore from '../stores/authStore';
 import { useSocket } from '../contexts/SocketContext';
+import MasalarYonetimi from '../components/MasalarYonetimi';
+import MenuYonetimi from '../components/MenuYonetimi';
+import QRKodlarYonetimi from '../components/QRKodlarYonetimi';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -28,6 +30,11 @@ const AdminDashboard = () => {
     } catch (error) {
       toast.error('Çıkış yapılırken hata oluştu');
     }
+  };
+
+  const handleTabChange = (tabId) => {
+    console.log('Sekme değiştiriliyor:', tabId);
+    setActiveTab(tabId);
   };
 
   const menuItems = [
@@ -68,6 +75,70 @@ const AdminDashboard = () => {
       description: 'Sistem ayarları'
     }
   ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'masalar':
+        return <MasalarYonetimi />;
+      case 'menu':
+        return <MenuYonetimi />;
+      case 'siparisler':
+        return (
+          <div className="text-center py-12">
+            <ShoppingCart className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Sipariş Yönetimi
+            </h3>
+            <p className="text-gray-600">
+              Sipariş yönetimi yakında eklenecek.
+            </p>
+          </div>
+        );
+      case 'qr':
+        return <QRKodlarYonetimi />;
+      case 'ayarlar':
+        return (
+          <div className="text-center py-12">
+            <Settings className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Sistem Ayarları
+            </h3>
+            <p className="text-gray-600">
+              Sistem ayarları yakında eklenecek.
+            </p>
+          </div>
+        );
+      default:
+        return (
+          <div className="text-center py-12">
+            <Coffee className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              Hoş Geldiniz!
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Sol taraftaki menülerden istediğiniz işlemi seçebilirsiniz.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto">
+              <div className="card text-center">
+                <Users className="h-8 w-8 text-primary-500 mx-auto mb-2" />
+                <h4 className="font-semibold">Masalar</h4>
+                <p className="text-sm text-gray-600">Masa yönetimi</p>
+              </div>
+              <div className="card text-center">
+                <MenuIcon className="h-8 w-8 text-primary-500 mx-auto mb-2" />
+                <h4 className="font-semibold">Menü</h4>
+                <p className="text-sm text-gray-600">Ürün yönetimi</p>
+              </div>
+              <div className="card text-center">
+                <ShoppingCart className="h-8 w-8 text-primary-500 mx-auto mb-2" />
+                <h4 className="font-semibold">Siparişler</h4>
+                <p className="text-sm text-gray-600">Sipariş takibi</p>
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -116,13 +187,13 @@ const AdminDashboard = () => {
       {/* Ana İçerik */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (
               <div
                 key={item.id}
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => handleTabChange(item.id)}
                 className={`card-hover cursor-pointer transition-all duration-200 ${
                   activeTab === item.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''
                 }`}
@@ -152,98 +223,8 @@ const AdminDashboard = () => {
         </div>
 
         {/* İçerik Alanı */}
-        <div className="mt-8">
-          <div className="card">
-            {activeTab === 'dashboard' && (
-              <div className="text-center py-12">
-                <Coffee className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Hoş Geldiniz!
-                </h3>
-                <p className="text-gray-600">
-                  Sol taraftaki menülerden istediğiniz işlemi seçebilirsiniz.
-                </p>
-              </div>
-            )}
-
-            {activeTab === 'masalar' && (
-              <div className="text-center py-12">
-                <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Masa Yönetimi
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  Masaları yönetin ve QR kodları oluşturun.
-                </p>
-                <button className="btn-primary flex items-center space-x-2 mx-auto">
-                  <Plus className="h-4 w-4" />
-                  <span>Yeni Masa Ekle</span>
-                </button>
-              </div>
-            )}
-
-            {activeTab === 'menu' && (
-              <div className="text-center py-12">
-                <MenuIcon className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Menü Yönetimi
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  Ürünleri ve kategorileri yönetin.
-                </p>
-                <div className="flex justify-center space-x-4">
-                  <button className="btn-primary flex items-center space-x-2">
-                    <Plus className="h-4 w-4" />
-                    <span>Yeni Ürün Ekle</span>
-                  </button>
-                  <button className="btn-secondary flex items-center space-x-2">
-                    <Plus className="h-4 w-4" />
-                    <span>Yeni Kategori</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'siparisler' && (
-              <div className="text-center py-12">
-                <ShoppingCart className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Sipariş Takibi
-                </h3>
-                <p className="text-gray-600">
-                  Aktif siparişleri görüntüleyin ve yönetin.
-                </p>
-              </div>
-            )}
-
-            {activeTab === 'qr' && (
-              <div className="text-center py-12">
-                <QrCode className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  QR Kod Yönetimi
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  QR kodları görüntüleyin ve yönetin.
-                </p>
-                <button className="btn-primary flex items-center space-x-2 mx-auto">
-                  <QrCode className="h-4 w-4" />
-                  <span>QR Kodları İndir</span>
-                </button>
-              </div>
-            )}
-
-            {activeTab === 'ayarlar' && (
-              <div className="text-center py-12">
-                <Settings className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Sistem Ayarları
-                </h3>
-                <p className="text-gray-600">
-                  Sistem ayarlarını yapılandırın.
-                </p>
-              </div>
-            )}
-          </div>
+        <div className="card">
+          {renderContent()}
         </div>
       </div>
     </div>

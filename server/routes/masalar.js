@@ -31,8 +31,46 @@ router.post('/', requireAuth, validate(masaCreateSchema), async (req, res) => {
       return res.status(400).json({ error: 'Bu masa numarası zaten mevcut' });
     }
 
-    // QR kod URL'ini oluştur
-    const qrUrl = `${req.protocol}://${req.get('host')}/menu?masa=${masa_no}`;
+    // Masayı veritabanına kaydet (QR kod olmadan)
+    db.run('INSERT INTO masalar (masa_no) VALUES (?)', 
+      [masa_no], function(err) {
+        if (err) {
+          return res.status(500).json({ error: 'Masa oluşturma hatası' });
+        }
+
+        const yeniMasa = {
+          id: this.lastID,
+          masa_no,
+          qr_code: null,
+          aktif: 1,
+          created_at: new Date().toISOString()
+        };
+
+        res.status(201).json({
+          message: 'Masa başarıyla oluşturuldu',
+          masa: yeniMasa
+        });
+      });
+  });
+});
+
+// QR kod oluştur/güncelle
+router.post('/:id/qr', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  // Masayı kontrol et
+  db.get('SELECT masa_no FROM masalar WHERE id = ?', [id], (err, masa) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database hatası' });
+    }
+
+    if (!masa) {
+      return res.status(404).json({ error: 'Masa bulunamadı' });
+    }
+
+    // QR kod URL'ini oluştur - Masa ID'si kullan
+    const baseUrl = process.env.BASE_URL || `http://${req.get('host')}`;
+    const qrUrl = `${baseUrl}/menu?id=${id}`;
     
     QRCode.toDataURL(qrUrl, { 
       width: 300,
@@ -46,24 +84,17 @@ router.post('/', requireAuth, validate(masaCreateSchema), async (req, res) => {
         return res.status(500).json({ error: 'QR kod oluşturma hatası' });
       }
 
-      // Masayı veritabanına kaydet
-      db.run('INSERT INTO masalar (masa_no, qr_code) VALUES (?, ?)', 
-        [masa_no, qrCode], function(err) {
+      // QR kodu veritabanına kaydet
+      db.run('UPDATE masalar SET qr_code = ? WHERE id = ?', 
+        [qrCode, id], function(err) {
           if (err) {
-            return res.status(500).json({ error: 'Masa oluşturma hatası' });
+            return res.status(500).json({ error: 'QR kod kaydetme hatası' });
           }
 
-          const yeniMasa = {
-            id: this.lastID,
-            masa_no,
+          res.json({
+            message: 'QR kod başarıyla oluşturuldu',
             qr_code: qrCode,
-            aktif: 1,
-            created_at: new Date().toISOString()
-          };
-
-          res.status(201).json({
-            message: 'Masa başarıyla oluşturuldu',
-            masa: yeniMasa
+            qr_url: qrUrl
           });
         });
     });
@@ -118,11 +149,38 @@ router.patch('/:id/toggle', requireAuth, (req, res) => {
     });
 });
 
-// Masa detaylarını getir
-router.get('/:id', requireAuth, (req, res) => {
+// QR kod görüntüle
+router.get('/:id/qr', requireAuth, (req, res) => {
   const { id } = req.params;
 
-  db.get('SELECT * FROM masalar WHERE id = ?', [id], (err, masa) => {
+  db.get('SELECT qr_code FROM masalar WHERE id = ?', [id], (err, masa) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database hatası' });
+    }
+
+    if (!masa) {
+      return res.status(404).json({ error: 'Masa bulunamadı' });
+    }
+
+    if (!masa.qr_code) {
+      return res.status(404).json({ error: 'Bu masa için QR kod henüz oluşturulmamış' });
+    }
+
+    // Base64'ten buffer'a çevir
+    const base64Data = masa.qr_code.replace(/^data:image\/png;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `inline; filename="qr-masa-${id}.png"`);
+    res.send(buffer);
+  });
+});
+
+// Masa detaylarını getir (public - müşteri menüsü için)
+router.get('/:id', (req, res) => {
+  const { id } = req.params;
+
+  db.get('SELECT * FROM masalar WHERE id = ? AND aktif = 1', [id], (err, masa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }

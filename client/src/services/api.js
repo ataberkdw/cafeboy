@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Axios instance oluştur
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5002/api',
+  baseURL: process.env.REACT_APP_API_URL || '/api',
   withCredentials: true,
   timeout: 10000,
 });
@@ -47,11 +47,13 @@ export const masalarAPI = {
   delete: (id) => api.delete(`/masalar/${id}`),
   toggle: (id) => api.patch(`/masalar/${id}/toggle`),
   getById: (id) => api.get(`/masalar/${id}`),
+  createQR: (id) => api.post(`/masalar/${id}/qr`),
 };
 
 // Menü API
 export const menuAPI = {
   getAll: () => api.get('/menu'),
+  getAdmin: () => api.get('/menu/admin'),
   getById: (id) => api.get(`/menu/${id}`),
   create: (data) => api.post('/menu', data),
   update: (id, data) => api.put(`/menu/${id}`, data),

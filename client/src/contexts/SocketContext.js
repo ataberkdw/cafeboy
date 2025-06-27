@@ -20,7 +20,7 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (isAuthenticated) {
       // Admin için socket bağlantısı
-      const newSocket = io(process.env.REACT_APP_SERVER_URL || 'http://localhost:5002', {
+      const newSocket = io(process.env.REACT_APP_SERVER_URL || '', {
         withCredentials: true,
       });
 
@@ -54,7 +54,7 @@ export const SocketProvider = ({ children }) => {
       };
     } else {
       // Müşteri için basit socket bağlantısı (gerekirse)
-      const newSocket = io(process.env.REACT_APP_SERVER_URL || 'http://localhost:5002', {
+      const newSocket = io(process.env.REACT_APP_SERVER_URL || '', {
         withCredentials: true,
       });
 

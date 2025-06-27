@@ -12,8 +12,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # SQLite DB
-server/database/*.db
-server/database/*.sqlite
+
 
 # Env
 .env

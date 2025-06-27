@@ -1,5 +1,6 @@
 const express = require('express');
-const http = require('http');
+const https = require('https');
+const fs = require('fs');
 const socketIo = require('socket.io');
 const session = require('express-session');
 const cors = require('cors');
@@ -18,10 +19,14 @@ const qrRoutes = require('./routes/qr');
 const { initDatabase } = require('./database/init');
 
 const app = express();
-const server = http.createServer(app);
+const options = {
+  key: fs.readFileSync(path.join(__dirname, 'server.key')),
+  cert: fs.readFileSync(path.join(__dirname, 'server.cert'))
+};
+const server = https.createServer(options, app);
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: ["https://localhost:5002", "https://127.0.0.1:5002", "https://192.168.1.108:5002"],
     methods: ["GET", "POST"]
   }
 });
@@ -38,7 +43,7 @@ app.use(limiter);
 
 // CORS ayarları
 app.use(cors({
-  origin: ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+  origin: ["https://localhost:5002", "https://127.0.0.1:5002", "https://192.168.1.108:5002"],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -107,9 +112,9 @@ const PORT = process.env.PORT || 5002;
 // Initialize database and start server
 initDatabase().then(() => {
   server.listen(PORT, () => {
-    console.log(`🚀 Server ${PORT} portunda çalışıyor`);
-    console.log(`📱 Admin Panel: http://localhost:${PORT}`);
-    console.log(`🔗 QR Menü: http://localhost:${PORT}/menu`);
+    console.log(`🚀 Server ${PORT} portunda HTTPS olarak çalışıyor`);
+    console.log(`📱 Admin Panel: https://localhost:${PORT}`);
+    console.log(`🔗 QR Menü: https://localhost:${PORT}/menu`);
   });
 }).catch(err => {
   console.error('Database başlatma hatası:', err);

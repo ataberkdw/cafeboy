@@ -91,7 +91,27 @@ router.delete('/kategoriler/:id', requireAuth, (req, res) => {
 
 // === MENÜ ROUTES ===
 
-// Tüm menüyü kategorilerle birlikte getir
+// Admin paneli için tüm menüyü düz liste olarak getir
+router.get('/admin', requireAuth, (req, res) => {
+  const query = `
+    SELECT 
+      m.*,
+      k.ad as kategori_ad
+    FROM menu m
+    LEFT JOIN kategoriler k ON m.kategori_id = k.id
+    ORDER BY k.sira, k.ad, m.sira, m.ad
+  `;
+
+  db.all(query, (err, menu) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database hatası' });
+    }
+
+    res.json(menu);
+  });
+});
+
+// Tüm menüyü kategorilerle birlikte getir (müşteri için)
 router.get('/', (req, res) => {
   const query = `
     SELECT 
