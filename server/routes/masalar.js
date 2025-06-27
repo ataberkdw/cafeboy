@@ -2,14 +2,14 @@ const express = require('express');
 const QRCode = require('qrcode');
 const { getDb } = require('../database/init');
 const { masaCreateSchema, validate } = require('../validation/schemas');
-const { requireAuth } = require('../middleware/auth');
+const { requireKafeAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const db = getDb();
 
-// Tüm masaları getir
-router.get('/', requireAuth, (req, res) => {
-  db.all('SELECT * FROM masalar ORDER BY masa_no', (err, masalar) => {
+// Tüm masaları getir (kafe bazlı)
+router.get('/', requireKafeAuth, (req, res) => {
+  db.all('SELECT * FROM masalar WHERE kafe_id = ? ORDER BY masa_no', [req.kafe_id], (err, masalar) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -17,12 +17,12 @@ router.get('/', requireAuth, (req, res) => {
   });
 });
 
-// Yeni masa oluştur
-router.post('/', requireAuth, validate(masaCreateSchema), async (req, res) => {
+// Yeni masa oluştur (kafe bazlı)
+router.post('/', requireAdmin, validate(masaCreateSchema), async (req, res) => {
   const { masa_no } = req.validatedData;
 
-  // Masa numarasının benzersiz olduğunu kontrol et
-  db.get('SELECT id FROM masalar WHERE masa_no = ?', [masa_no], (err, existingMasa) => {
+  // Masa numarasının bu kafede benzersiz olduğunu kontrol et
+  db.get('SELECT id FROM masalar WHERE kafe_id = ? AND masa_no = ?', [req.kafe_id, masa_no], (err, existingMasa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -32,14 +32,15 @@ router.post('/', requireAuth, validate(masaCreateSchema), async (req, res) => {
     }
 
     // Masayı veritabanına kaydet (QR kod olmadan)
-    db.run('INSERT INTO masalar (masa_no) VALUES (?)', 
-      [masa_no], function(err) {
+    db.run('INSERT INTO masalar (kafe_id, masa_no) VALUES (?, ?)', 
+      [req.kafe_id, masa_no], function(err) {
         if (err) {
           return res.status(500).json({ error: 'Masa oluşturma hatası' });
         }
 
         const yeniMasa = {
           id: this.lastID,
+          kafe_id: req.kafe_id,
           masa_no,
           qr_code: null,
           aktif: 1,
@@ -54,12 +55,12 @@ router.post('/', requireAuth, validate(masaCreateSchema), async (req, res) => {
   });
 });
 
-// QR kod oluştur/güncelle
-router.post('/:id/qr', requireAuth, async (req, res) => {
+// QR kod oluştur/güncelle (kafe bazlı)
+router.post('/:id/qr', requireAdmin, async (req, res) => {
   const { id } = req.params;
 
-  // Masayı kontrol et
-  db.get('SELECT masa_no FROM masalar WHERE id = ?', [id], (err, masa) => {
+  // Masayı bu kafeye ait olduğunu kontrol et
+  db.get('SELECT masa_no FROM masalar WHERE id = ? AND kafe_id = ?', [id, req.kafe_id], (err, masa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -85,8 +86,8 @@ router.post('/:id/qr', requireAuth, async (req, res) => {
       }
 
       // QR kodu veritabanına kaydet
-      db.run('UPDATE masalar SET qr_code = ? WHERE id = ?', 
-        [qrCode, id], function(err) {
+      db.run('UPDATE masalar SET qr_code = ? WHERE id = ? AND kafe_id = ?', 
+        [qrCode, id, req.kafe_id], function(err) {
           if (err) {
             return res.status(500).json({ error: 'QR kod kaydetme hatası' });
           }
@@ -101,13 +102,13 @@ router.post('/:id/qr', requireAuth, async (req, res) => {
   });
 });
 
-// Masa sil
-router.delete('/:id', requireAuth, (req, res) => {
+// Masa sil (kafe bazlı)
+router.delete('/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
 
-  // Masada aktif sipariş var mı kontrol et
-  db.get('SELECT COUNT(*) as count FROM siparisler WHERE masa_id = ? AND durum IN ("beklemede", "hazirlaniyor")', 
-    [id], (err, result) => {
+  // Masada aktif sipariş var mı kontrol et (kafe bazlı)
+  db.get('SELECT COUNT(*) as count FROM siparisler WHERE masa_id = ? AND kafe_id = ? AND durum IN ("beklemede", "hazirlaniyor")', 
+    [id, req.kafe_id], (err, result) => {
       if (err) {
         return res.status(500).json({ error: 'Database hatası' });
       }
@@ -116,8 +117,8 @@ router.delete('/:id', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'Bu masada aktif siparişler var. Önce siparişleri tamamlayın.' });
       }
 
-      // Masayı sil
-      db.run('DELETE FROM masalar WHERE id = ?', [id], function(err) {
+      // Masayı sil (kafe bazlı)
+      db.run('DELETE FROM masalar WHERE id = ? AND kafe_id = ?', [id, req.kafe_id], function(err) {
         if (err) {
           return res.status(500).json({ error: 'Masa silme hatası' });
         }
@@ -131,12 +132,12 @@ router.delete('/:id', requireAuth, (req, res) => {
     });
 });
 
-// Masa durumunu güncelle (aktif/pasif)
-router.patch('/:id/toggle', requireAuth, (req, res) => {
+// Masa durumunu güncelle (aktif/pasif) - kafe bazlı
+router.patch('/:id/toggle', requireAdmin, (req, res) => {
   const { id } = req.params;
 
-  db.run('UPDATE masalar SET aktif = CASE WHEN aktif = 1 THEN 0 ELSE 1 END WHERE id = ?', 
-    [id], function(err) {
+  db.run('UPDATE masalar SET aktif = CASE WHEN aktif = 1 THEN 0 ELSE 1 END WHERE id = ? AND kafe_id = ?', 
+    [id, req.kafe_id], function(err) {
       if (err) {
         return res.status(500).json({ error: 'Masa güncelleme hatası' });
       }
@@ -149,11 +150,11 @@ router.patch('/:id/toggle', requireAuth, (req, res) => {
     });
 });
 
-// QR kod görüntüle
-router.get('/:id/qr', requireAuth, (req, res) => {
+// QR kod görüntüle (kafe bazlı)
+router.get('/:id/qr', requireAdmin, (req, res) => {
   const { id } = req.params;
 
-  db.get('SELECT qr_code FROM masalar WHERE id = ?', [id], (err, masa) => {
+  db.get('SELECT qr_code FROM masalar WHERE id = ? AND kafe_id = ?', [id, req.kafe_id], (err, masa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }

@@ -1,16 +1,16 @@
 const express = require('express');
 const QRCode = require('qrcode');
 const { getDb } = require('../database/init');
-const { requireAuth } = require('../middleware/auth');
+const { requireKafeAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const db = getDb();
 
-// Masa QR kodunu getir
+// Masa QR kodunu getir (kafe bazlı)
 router.get('/:masaId', (req, res) => {
   const { masaId } = req.params;
 
-  db.get('SELECT masa_no, qr_code FROM masalar WHERE id = ? AND aktif = 1', [masaId], (err, masa) => {
+  db.get('SELECT masa_no, qr_code, kafe_id FROM masalar WHERE id = ? AND aktif = 1', [masaId], (err, masa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -21,17 +21,18 @@ router.get('/:masaId', (req, res) => {
 
     res.json({
       masa_no: masa.masa_no,
-      qr_code: masa.qr_code
+      qr_code: masa.qr_code,
+      kafe_id: masa.kafe_id
     });
   });
 });
 
-// QR kod yeniden oluştur (admin)
-router.post('/:masaId/regenerate', requireAuth, (req, res) => {
+// QR kod yeniden oluştur (admin - kafe bazlı)
+router.post('/:masaId/regenerate', requireAdmin, (req, res) => {
   const { masaId } = req.params;
 
-  // Masayı kontrol et
-  db.get('SELECT masa_no FROM masalar WHERE id = ?', [masaId], (err, masa) => {
+  // Masayı bu kafeye ait olduğunu kontrol et
+  db.get('SELECT masa_no FROM masalar WHERE id = ? AND kafe_id = ?', [masaId, req.kafe_id], (err, masa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -56,8 +57,8 @@ router.post('/:masaId/regenerate', requireAuth, (req, res) => {
         return res.status(500).json({ error: 'QR kod oluşturma hatası' });
       }
 
-      // QR kodu güncelle
-      db.run('UPDATE masalar SET qr_code = ? WHERE id = ?', [qrCode, masaId], function(err) {
+      // QR kodu güncelle (kafe bazlı)
+      db.run('UPDATE masalar SET qr_code = ? WHERE id = ? AND kafe_id = ?', [qrCode, masaId, req.kafe_id], function(err) {
         if (err) {
           return res.status(500).json({ error: 'QR kod güncelleme hatası' });
         }
@@ -73,9 +74,9 @@ router.post('/:masaId/regenerate', requireAuth, (req, res) => {
   });
 });
 
-// Toplu QR kod indirme (admin)
-router.get('/download/all', requireAuth, (req, res) => {
-  db.all('SELECT id, masa_no, qr_code FROM masalar WHERE aktif = 1 ORDER BY masa_no', (err, masalar) => {
+// Toplu QR kod indirme (admin - kafe bazlı)
+router.get('/download/all', requireKafeAuth, (req, res) => {
+  db.all('SELECT id, masa_no, qr_code FROM masalar WHERE kafe_id = ? AND aktif = 1 ORDER BY masa_no', [req.kafe_id], (err, masalar) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }

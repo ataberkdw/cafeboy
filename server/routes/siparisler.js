@@ -1,13 +1,13 @@
 const express = require('express');
 const { getDb } = require('../database/init');
 const { siparisCreateSchema, siparisUpdateSchema, validate } = require('../validation/schemas');
-const { requireAuth } = require('../middleware/auth');
+const { requireKafeAuth, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 const db = getDb();
 
-// Tüm aktif siparişleri getir (admin)
-router.get('/', requireAuth, (req, res) => {
+// Tüm aktif siparişleri getir (admin - kafe bazlı)
+router.get('/', requireKafeAuth, (req, res) => {
   const query = `
     SELECT 
       s.*,
@@ -16,12 +16,12 @@ router.get('/', requireAuth, (req, res) => {
     FROM siparisler s
     LEFT JOIN masalar m ON s.masa_id = m.id
     LEFT JOIN siparis_detaylari sd ON s.id = sd.siparis_id
-    WHERE s.durum IN ('beklemede', 'hazirlaniyor', 'tamamlandi')
+    WHERE s.kafe_id = ? AND s.durum IN ('beklemede', 'hazirlaniyor', 'tamamlandi')
     GROUP BY s.id
     ORDER BY s.created_at DESC
   `;
 
-  db.all(query, (err, siparisler) => {
+  db.all(query, [req.kafe_id], (err, siparisler) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -29,11 +29,11 @@ router.get('/', requireAuth, (req, res) => {
   });
 });
 
-// Masa bazında siparişleri getir (müşteri)
+// Masa bazında siparişleri getir (müşteri - kafe bazlı)
 router.get('/masa/:masaNo', (req, res) => {
   const { masaNo } = req.params;
 
-  db.get('SELECT id FROM masalar WHERE masa_no = ? AND aktif = 1', [masaNo], (err, masa) => {
+  db.get('SELECT id, kafe_id FROM masalar WHERE masa_no = ? AND aktif = 1', [masaNo], (err, masa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -48,11 +48,11 @@ router.get('/masa/:masaNo', (req, res) => {
         m.masa_no
       FROM siparisler s
       LEFT JOIN masalar m ON s.masa_id = m.id
-      WHERE s.masa_id = ? AND s.durum IN ('beklemede', 'hazirlaniyor', 'tamamlandi')
+      WHERE s.masa_id = ? AND s.kafe_id = ? AND s.durum IN ('beklemede', 'hazirlaniyor', 'tamamlandi')
       ORDER BY s.created_at DESC
     `;
 
-    db.all(query, [masa.id], (err, siparisler) => {
+    db.all(query, [masa.id, masa.kafe_id], (err, siparisler) => {
       if (err) {
         return res.status(500).json({ error: 'Database hatası' });
       }
@@ -61,8 +61,8 @@ router.get('/masa/:masaNo', (req, res) => {
   });
 });
 
-// Sipariş detaylarını getir
-router.get('/:id', (req, res) => {
+// Sipariş detaylarını getir (kafe bazlı)
+router.get('/:id', requireKafeAuth, (req, res) => {
   const { id } = req.params;
 
   const siparisQuery = `
@@ -71,10 +71,10 @@ router.get('/:id', (req, res) => {
       m.masa_no
     FROM siparisler s
     LEFT JOIN masalar m ON s.masa_id = m.id
-    WHERE s.id = ?
+    WHERE s.id = ? AND s.kafe_id = ?
   `;
 
-  db.get(siparisQuery, [id], (err, siparis) => {
+  db.get(siparisQuery, [id, req.kafe_id], (err, siparis) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -91,10 +91,10 @@ router.get('/:id', (req, res) => {
         menu.resim as urun_resim
       FROM siparis_detaylari sd
       LEFT JOIN menu menu ON sd.menu_id = menu.id
-      WHERE sd.siparis_id = ?
+      WHERE sd.siparis_id = ? AND sd.kafe_id = ?
     `;
 
-    db.all(detayQuery, [id], (err, detaylar) => {
+    db.all(detayQuery, [id, req.kafe_id], (err, detaylar) => {
       if (err) {
         return res.status(500).json({ error: 'Database hatası' });
       }
@@ -107,11 +107,11 @@ router.get('/:id', (req, res) => {
   });
 });
 
-// Yeni sipariş oluştur (müşteri)
+// Yeni sipariş oluştur (müşteri - kafe bazlı)
 router.post('/', validate(siparisCreateSchema), (req, res) => {
   const { masa_id, items, notlar } = req.validatedData;
 
-  db.get('SELECT id, masa_no FROM masalar WHERE id = ? AND aktif = 1', [masa_id], (err, masa) => {
+  db.get('SELECT id, masa_no, kafe_id FROM masalar WHERE id = ? AND aktif = 1', [masa_id], (err, masa) => {
     if (err) {
       return res.status(500).json({ error: 'Database hatası' });
     }
@@ -120,11 +120,12 @@ router.post('/', validate(siparisCreateSchema), (req, res) => {
       return res.status(400).json({ error: 'Masa bulunamadı veya aktif değil' });
     }
 
+    const kafeId = masa.kafe_id;
     const urunIds = items.map(item => item.menu_id);
     const placeholders = urunIds.map(() => '?').join(',');
     
-    db.all(`SELECT id, ad, fiyat, stok FROM menu WHERE id IN (${placeholders}) AND aktif = 1`, 
-      urunIds, (err, urunler) => {
+    db.all(`SELECT id, ad, fiyat, stok FROM menu WHERE id IN (${placeholders}) AND kafe_id = ? AND aktif = 1`, 
+      [...urunIds, kafeId], (err, urunler) => {
         if (err) {
           return res.status(500).json({ error: 'Database hatası' });
         }
@@ -155,8 +156,8 @@ router.post('/', validate(siparisCreateSchema), (req, res) => {
         db.serialize(() => {
           db.run('BEGIN TRANSACTION');
 
-          db.run('INSERT INTO siparisler (masa_id, toplam_fiyat, notlar) VALUES (?, ?, ?)', 
-            [masa_id, toplamFiyat, notlar], function(err) {
+          db.run('INSERT INTO siparisler (kafe_id, masa_id, toplam_fiyat, notlar) VALUES (?, ?, ?, ?)', 
+            [kafeId, masa_id, toplamFiyat, notlar], function(err) {
               if (err) {
                 db.run('ROLLBACK');
                 return res.status(500).json({ error: 'Sipariş oluşturma hatası' });
@@ -169,15 +170,15 @@ router.post('/', validate(siparisCreateSchema), (req, res) => {
                 const urun = urunler.find(u => u.id === item.menu_id);
                 const detayToplam = urun.fiyat * item.adet;
 
-                db.run('INSERT INTO siparis_detaylari (siparis_id, menu_id, adet, birim_fiyat, toplam_fiyat, notlar) VALUES (?, ?, ?, ?, ?, ?)', 
-                  [siparisId, item.menu_id, item.adet, urun.fiyat, detayToplam, item.notlar], (err) => {
+                db.run('INSERT INTO siparis_detaylari (kafe_id, siparis_id, menu_id, adet, birim_fiyat, toplam_fiyat, notlar) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+                  [kafeId, siparisId, item.menu_id, item.adet, urun.fiyat, detayToplam, item.notlar], (err) => {
                     if (err) {
                       db.run('ROLLBACK');
                       return res.status(500).json({ error: 'Sipariş detayı ekleme hatası' });
                     }
 
-                    db.run('UPDATE menu SET stok = stok - ? WHERE id = ?', 
-                      [item.adet, item.menu_id], (err) => {
+                    db.run('UPDATE menu SET stok = stok - ? WHERE id = ? AND kafe_id = ?', 
+                      [item.adet, item.menu_id, kafeId], (err) => {
                         if (err) {
                           db.run('ROLLBACK');
                           return res.status(500).json({ error: 'Stok güncelleme hatası' });
@@ -194,13 +195,18 @@ router.post('/', validate(siparisCreateSchema), (req, res) => {
                             io.to('admin-room').emit('siparis-geldi', {
                               siparisId,
                               masaNo: masa.masa_no,
-                              toplamFiyat
+                              toplamFiyat,
+                              kafeId
                             });
 
                             res.status(201).json({
                               message: 'Sipariş başarıyla oluşturuldu',
-                              siparisId,
-                              toplamFiyat
+                              siparis: {
+                                id: siparisId,
+                                masa_id,
+                                toplam_fiyat: toplamFiyat,
+                                durum: 'beklemede'
+                              }
                             });
                           });
                         }
@@ -210,12 +216,11 @@ router.post('/', validate(siparisCreateSchema), (req, res) => {
             });
         });
       });
-    });
+  });
 });
 
-
 // Sipariş durumunu güncelle (admin)
-router.patch('/:id/durum', requireAuth, validate(siparisUpdateSchema), (req, res) => {
+router.patch('/:id/durum', requireAdmin, validate(siparisUpdateSchema), (req, res) => {
   const { id } = req.params;
   const { durum, notlar } = req.validatedData;
 
@@ -240,7 +245,7 @@ router.patch('/:id/durum', requireAuth, validate(siparisUpdateSchema), (req, res
 });
 
 // Siparişi tamamla (admin)
-router.post('/:id/tamamla', requireAuth, (req, res) => {
+router.post('/:id/tamamla', requireAdmin, (req, res) => {
   const { id } = req.params;
 
   db.run('UPDATE siparisler SET durum = "tamamlandi", updated_at = CURRENT_TIMESTAMP WHERE id = ?', 
@@ -264,7 +269,7 @@ router.post('/:id/tamamla', requireAuth, (req, res) => {
 });
 
 // Siparişi temizle (admin - ödeme alındı)
-router.post('/:id/temizle', requireAuth, (req, res) => {
+router.post('/:id/temizle', requireAdmin, (req, res) => {
   const { id } = req.params;
 
   db.run('UPDATE siparisler SET durum = "teslim_edildi", updated_at = CURRENT_TIMESTAMP WHERE id = ?', 

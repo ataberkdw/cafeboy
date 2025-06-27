@@ -9,6 +9,7 @@ const path = require('path');
 
 // Routes
 const authRoutes = require('./routes/auth');
+const kafelerRoutes = require('./routes/kafeler');
 const masaRoutes = require('./routes/masalar');
 const menuRoutes = require('./routes/menu');
 const siparisRoutes = require('./routes/siparisler');
@@ -69,6 +70,7 @@ app.use(express.static(path.join(__dirname, '../client/build')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/kafeler', kafelerRoutes);
 app.use('/api/masalar', masaRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/siparisler', siparisRoutes);
