@@ -230,14 +230,14 @@ const MasalarYonetimi = () => {
             </div>
             <div className="text-center">
               <img
-                src={`http://localhost:5002/api/masalar/${selectedQR}/qr`}
+                src={`https://cafeboy.onrender.com/api/masalar/${selectedQR}/qr`}
                 alt="QR Kodu"
                 className="w-full h-auto mx-auto"
               />
             </div>
             <div className="flex space-x-4 mt-6">
               <button
-                onClick={() => window.open(`http://localhost:5002/api/masalar/${selectedQR}/qr`, '_blank')}
+                onClick={() => window.open(`https://cafeboy.onrender.com/api/masalar/${selectedQR}/qr`, '_blank')}
                 className="flex-1 btn-primary flex items-center justify-center space-x-2"
               >
                 <Download className="h-4 w-4" />

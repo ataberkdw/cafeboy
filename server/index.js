@@ -21,7 +21,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:5002", "http://127.0.0.1:5002", "http://192.168.1.108:5002"],
+    origin: ["http://localhost:5002", "http://127.0.0.1:5002", "http://192.168.1.108:5002", "https://cafeboy.onrender.com"],
     methods: ["GET", "POST"]
   }
 });
@@ -38,10 +38,10 @@ app.use(limiter);
 
 // CORS ayarları
 app.use(cors({
-  origin: ["http://localhost:5002", "http://127.0.0.1:5002", "http://192.168.1.108:5002"],
+  origin: ["http://localhost:5002", "http://127.0.0.1:5002", "http://192.168.1.108:5002", "https://cafeboy.onrender.com"],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Debug middleware
